@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Memoria (Memoria superat oblivionem) Core</title>
+  <title>Memoria Core</title>
   <style>
     /* ==========================================
        CSS変数 (ライトモード)
@@ -129,6 +129,16 @@
     .edit-actions { display: flex; gap: 8px; margin-top: 10px; } .edit-actions .btn { flex: 1; }
     .small-note { font-size: 13px; color: var(--text-muted); }
 
+
+    /* カスタム確認モーダル */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 18px; z-index: 10000; }
+    .modal-backdrop[hidden] { display: none; }
+    .modal-dialog { width: min(92vw, 440px); background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: 14px; padding: 20px; box-shadow: 0 20px 45px rgba(0,0,0,0.25); }
+    .modal-title { margin: 0 0 8px; font-size: 19px; font-weight: 800; }
+    .modal-message { margin: 0 0 18px; color: var(--text-muted); white-space: pre-wrap; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .modal-actions .btn { min-width: 120px; }
+
     @media (max-width: 560px) {
       nav { gap: 4px; } nav button { font-size: 14px; padding: 7px 8px; } .container { width: 94%; } .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .filters { grid-template-columns: 1fr; } .eval-buttons { flex-direction: column; } .btn-eval { width: 100%; min-height: 64px; }
@@ -149,7 +159,7 @@
   <div class="container">
 
     <div id="tab-dashboard" class="tab-content active">
-      <h2 style="text-align: center;">Memoria (Memoria superat oblivionem) Core</h2>
+      <h2 style="text-align: center;">Memoria Core</h2>
       <div class="stats-grid">
         <div class="stat-card"><div id="stat-total" class="stat-number">0</div><div class="stat-label">登録総数</div></div>
         <div class="stat-card"><div id="stat-review" class="stat-number">0</div><div class="stat-label">今日の復習</div></div>
@@ -240,7 +250,7 @@
     <div id="tab-import" class="tab-content">
       <h2>単語の新規追加</h2>
       <div class="panel">
-        <p class="small-note">手動で単語を追加します。空欄化済み例文を空欄にした場合は、学習時に見出し語を自動で空欄化します。</p>
+        <p class="small-note">手動で単語を追加します。カテゴリを空欄にすると「未分類」として保存されます。空欄化済み例文を空欄にした場合は、学習時に見出し語を自動で空欄化します。</p>
         <div class="edit-grid" style="margin-bottom: 15px;">
           <label>カテゴリ<input id="add-category" type="text" placeholder="例: ビジネス、生活"></label>
           <label>英単語<input id="add-word" type="text"></label>
@@ -258,9 +268,12 @@
         <p class="small-note">学習進捗と単語データはこのブラウザ内に保存されます。端末変更やブラウザデータ削除に備えて、定期的にバックアップしてください。</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button onclick="exportBackup()" class="btn btn-primary" style="flex: 1; min-width: 180px;">JSONバックアップを保存</button>
-          <label class="btn btn-warning" for="restore-file" style="flex: 1; min-width: 180px; text-align: center;">バックアップから復元</label>
-          <input id="restore-file" type="file" accept=".json,application/json" style="display: none;" onchange="importBackup(event)">
+          <label class="btn btn-warning" for="restore-overwrite-file" style="flex: 1; min-width: 180px; text-align: center;">上書き復元</label>
+          <input id="restore-overwrite-file" type="file" accept=".json,application/json" style="display: none;" onchange="importBackup(event, 'overwrite')">
+          <label class="btn btn-secondary" for="restore-merge-file" style="flex: 1; min-width: 180px; text-align: center;">マージ復元</label>
+          <input id="restore-merge-file" type="file" accept=".json,application/json" style="display: none;" onchange="importBackup(event, 'merge')">
         </div>
+        <p class="small-note" style="margin-bottom: 0;">上書き復元は現在のデータを置き換えます。マージ復元は既存カードを残し、バックアップ側にしかないカードだけ追加します。どちらも実行前に現在データの自動バックアップを書き出します。</p>
       </div>
     </div>
 
@@ -8524,13 +8537,13 @@
     // ==========================================
     // 基本設定
     // ==========================================
-    const STORAGE_KEY = 'ryutan_vocab_cards';
-    const ACTIVITY_STORAGE_KEY = 'ryutan_vocab_activity';
-    const PRESET_VERSION_KEY = 'ryutan_vocab_preset_version';
+    const STORAGE_KEY = 'memoria_core_cards';
+    const ACTIVITY_STORAGE_KEY = 'memoria_core_activity';
+    const PRESET_VERSION_KEY = 'memoria_core_preset_version';
     const PRESET_VERSION = '2026.1';
-    const PRESET_DELETED_KEYS_KEY = 'ryutan_vocab_deleted_preset_keys';
-    const LEGACY_STORAGE_KEYS = ['important_vocab_cards_v5_example_masked_1032', 'student_vocab_cards'];
-    const LEGACY_ACTIVITY_STORAGE_KEYS = ['important_vocab_activity_v5_example_masked_1032', 'student_vocab_activity'];
+    const PRESET_DELETED_KEYS_KEY = 'memoria_core_deleted_preset_keys';
+    const LEGACY_STORAGE_KEYS = ['ryutan_vocab_cards', 'important_vocab_cards_v5_example_masked_1032', 'student_vocab_cards'];
+    const LEGACY_ACTIVITY_STORAGE_KEYS = ['ryutan_vocab_activity', 'important_vocab_activity_v5_example_masked_1032', 'student_vocab_activity'];
     const MAX_EFACTOR = 3.0;
     const LIST_PAGE_SIZE = 100;
     const SEARCH_DEBOUNCE_MS = 300;
@@ -8551,6 +8564,58 @@
       toast.className = 'toast'; toast.textContent = message;
       container.appendChild(toast);
       setTimeout(() => toast.remove(), duration + 500);
+    }
+
+
+    // カスタム確認モーダル（ネイティブ confirm() を使わない）
+    let activeDialog = null;
+    function showConfirmDialog({ title = '確認', message = '', confirmText = 'OK', cancelText = 'キャンセル', danger = false } = {}) {
+      if (activeDialog && activeDialog.resolve) activeDialog.resolve(false);
+
+      return new Promise(resolve => {
+        const previouslyFocused = document.activeElement;
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        backdrop.innerHTML = `
+          <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
+            <h3 class="modal-title" id="modal-title"></h3>
+            <p class="modal-message" id="modal-message"></p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-muted" data-action="cancel"></button>
+              <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-action="confirm"></button>
+            </div>
+          </div>`;
+        backdrop.querySelector('#modal-title').textContent = title;
+        backdrop.querySelector('#modal-message').textContent = message;
+        backdrop.querySelector('[data-action="cancel"]').textContent = cancelText;
+        backdrop.querySelector('[data-action="confirm"]').textContent = confirmText;
+
+        const close = (value) => {
+          document.removeEventListener('keydown', onKeyDown);
+          backdrop.remove();
+          activeDialog = null;
+          if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+          resolve(value);
+        };
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') close(false);
+          if (event.key === 'Tab') {
+            const focusables = Array.from(backdrop.querySelectorAll('button'));
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+          }
+        };
+
+        backdrop.querySelector('[data-action="cancel"]').addEventListener('click', () => close(false));
+        backdrop.querySelector('[data-action="confirm"]').addEventListener('click', () => close(true));
+        backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(false); });
+        document.body.appendChild(backdrop);
+        document.addEventListener('keydown', onKeyDown);
+        activeDialog = { resolve: close };
+        setTimeout(() => backdrop.querySelector('[data-action="cancel"]').focus(), 0);
+      });
     }
 
     function escapeHTML(str) {
@@ -8648,7 +8713,7 @@
     }
     function saveCards(cards) {
       if (!safeSetItem(STORAGE_KEY, JSON.stringify(cards))) {
-        alert('⚠️ データの保存に失敗しました。'); return false;
+        showToast('⚠️ データの保存に失敗しました。'); return false;
       }
       updateDashboard(); return true;
     }
@@ -8775,10 +8840,9 @@
     function seedAndMergePresetCards(existingCards) {
       const before = JSON.stringify(existingCards || []);
       const deletedPresetKeys = getDeletedPresetKeys();
-      let cards = (Array.isArray(existingCards) ? existingCards : [])
+      const cards = collapseDuplicateCards((Array.isArray(existingCards) ? existingCards : [])
         .map(migrateCardForCurrentPreset)
-        .filter(Boolean);
-      cards = collapseDuplicateCards(cards);
+        .filter(Boolean));
 
       const existingKeys = new Set(cards.map(makeDuplicateKey));
       let added = 0;
@@ -8865,8 +8929,14 @@
       currentIndex = 0; sessionInitialCount = learningQueue.length; sessionRequeuedCount = 0; isEvaluating = false;
       switchTab('tab-learning'); showNextCard();
     }
-    function suspendLearning() {
-      if (!confirm('学習を一時中断してホームに戻りますか？\n進捗は自動保存されています。')) return;
+    async function suspendLearning() {
+      const ok = await showConfirmDialog({
+        title: '学習を中断しますか？',
+        message: '進捗は自動保存されています。ホームに戻りますか？',
+        confirmText: '中断して戻る',
+        cancelText: '学習を続ける'
+      });
+      if (!ok) return;
       learningQueue = []; currentIndex = 0; currentCard = null;
       if ('speechSynthesis' in window) speechSynthesis.cancel();
       switchTab('tab-dashboard'); showToast('学習を中断しました。');
@@ -8972,7 +9042,7 @@
       } finally { isEvaluating = false; }
     }
     document.addEventListener('keydown', event => {
-      if (!document.getElementById('tab-learning').classList.contains('active') || event.repeat || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+      if (activeDialog || !document.getElementById('tab-learning').classList.contains('active') || event.repeat || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       const answerVisible = document.getElementById('card-back').className !== 'card-back-hidden';
       if (event.code === 'Space' && !answerVisible) { event.preventDefault(); showAnswer(); }
       else if (answerVisible) {
@@ -9033,7 +9103,7 @@
         <div class="word-main">
           <div class="word-head">${escapeHTML(c.word)}</div><div class="word-meaning">${escapeHTML(c.meaning)}</div>
           <span class="list-info">カテゴリ: ${escapeHTML(c.category)}</span>
-          <span class="list-info">状態: ${escapeHTML(c.status)} | 学習回数: ${escapeHTML(c.repetition)}回 | 苦手回数: ${escapeHTML(c.lapses)} | 次回: ${escapeHTML(formatDate(c.nextReviewDate))}</span>`;
+          <span class="list-info">状態: ${escapeHTML(c.status)} | 学習回数: ${escapeHTML(String(c.repetition))}回 | 苦手回数: ${escapeHTML(String(c.lapses))} | 次回: ${escapeHTML(formatDate(c.nextReviewDate))}</span>`;
       if (c.example) html += `<span class="list-info">例文: ${escapeHTML(c.example)}</span>`;
       if (c.example_translation) html += `<span class="list-info" style="color:var(--text-muted);">訳: ${escapeHTML(c.example_translation)}</span>`;
       if (c.example_masked) html += `<span class="list-info">空欄例文: ${escapeHTML(c.example_masked)}</span>`;
@@ -9088,10 +9158,20 @@
       editingCardId = null; populateCategoryFilter(); renderVocabList(); showToast('保存しました。');
     }
 
-    function deleteCard(id) {
-      if (!confirm('本当に削除しますか？')) return;
+    async function deleteCard(id) {
       const cards = getCards();
       const target = cards.find(c => c.id === id);
+      const label = target ? `${target.word}（${target.meaning}）` : 'このカード';
+      const ok = await showConfirmDialog({
+        title: 'カードを削除しますか？',
+        message: `${label}
+
+この操作は元に戻せません。プリセット語を削除した場合、次回起動時の自動マージでも復活しないように記録します。`,
+        confirmText: '削除する',
+        cancelText: 'キャンセル',
+        danger: true
+      });
+      if (!ok) return;
       if (target && target.is_preset) {
         const keys = getDeletedPresetKeys();
         keys.add(target.preset_key || makePresetKey(target));
@@ -9131,63 +9211,161 @@
     }
 
 
-    function exportBackup() {
-      const payload = {
-        app: 'Ryutan Vocabulary',
+    function buildBackupPayload() {
+      return {
+        app: 'Memoria Core',
         version: PRESET_VERSION,
         exportedAt: new Date().toISOString(),
         cards: getCards(),
-        activity: getActivityData()
+        activity: getActivityData(),
+        deletedPresetKeys: Array.from(getDeletedPresetKeys())
       };
+    }
+
+    function downloadBackupPayload(payload, filenamePrefix = 'memoria-core-backup') {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const date = todayStamp();
       a.href = url;
-      a.download = `ryutan-vocab-backup-${date}.json`;
+      a.download = `${filenamePrefix}-${date}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast('バックアップを書き出しました。');
     }
 
-    function importBackup(event) {
+    function exportBackup(options = {}) {
+      try {
+        downloadBackupPayload(buildBackupPayload(), options.filenamePrefix || 'memoria-core-backup');
+        if (!options.silent) showToast('バックアップを書き出しました。保存先を確認してください。');
+        return true;
+      } catch (e) {
+        console.error(e);
+        if (!options.silent) showToast('バックアップの書き出しを開始できませんでした。');
+        return false;
+      }
+    }
+
+    function mergeActivityData(currentActivity, importedActivity) {
+      const merged = { ...(currentActivity || {}) };
+      if (importedActivity && typeof importedActivity === 'object' && !Array.isArray(importedActivity)) {
+        Object.keys(importedActivity).forEach(date => {
+          const current = safeNumber(merged[date], 0);
+          const incoming = safeNumber(importedActivity[date], 0);
+          merged[date] = Math.max(current, incoming);
+        });
+      }
+      return merged;
+    }
+
+    function mergeCardsByDuplicateKey(currentCards, importedCards) {
+      const result = collapseDuplicateCards(currentCards.map(normalizeCard).filter(c => c.word && c.meaning));
+      const existingKeys = new Set(result.map(makeDuplicateKey));
+      const existingIds = new Set(result.map(c => c.id));
+      let added = 0;
+
+      importedCards.forEach(card => {
+        const normalized = normalizeCard(card);
+        if (!normalized.word || !normalized.meaning) return;
+        const key = makeDuplicateKey(normalized);
+        if (existingKeys.has(key)) return;
+        if (existingIds.has(normalized.id)) normalized.id = generateId();
+        result.push(normalized);
+        existingKeys.add(key);
+        existingIds.add(normalized.id);
+        added++;
+      });
+      return { cards: result, added };
+    }
+
+    function parseBackupData(rawText) {
+      const data = JSON.parse(String(rawText || ''));
+      const rawCards = Array.isArray(data) ? data : data.cards;
+      if (!Array.isArray(rawCards)) throw new Error('cards array not found');
+      const normalizedCards = rawCards.map(normalizeCard).filter(c => c.word && c.meaning);
+      if (normalizedCards.length === 0) throw new Error('no valid cards');
+      const activity = (!Array.isArray(data) && data.activity && typeof data.activity === 'object') ? data.activity : {};
+      const deletedPresetKeys = (!Array.isArray(data) && Array.isArray(data.deletedPresetKeys)) ? data.deletedPresetKeys : null;
+      return { normalizedCards, activity, deletedPresetKeys };
+    }
+
+    function restoreDeletedPresetKeys(importedKeys, mode) {
+      const current = getDeletedPresetKeys();
+      if (Array.isArray(importedKeys)) {
+        const incoming = new Set(importedKeys);
+        if (mode === 'merge') {
+          incoming.forEach(key => current.add(key));
+          saveDeletedPresetKeys(current);
+        } else {
+          saveDeletedPresetKeys(incoming);
+        }
+      } else {
+        // 古いバックアップには deletedPresetKeys が無い。削除済みプリセットを復活させないため、現在の記録を維持する。
+        saveDeletedPresetKeys(current);
+      }
+    }
+
+    async function importBackup(event, mode = 'overwrite') {
       const input = event.target;
       const file = input.files && input.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(String(reader.result || ''));
-          const rawCards = Array.isArray(data) ? data : data.cards;
-          if (!Array.isArray(rawCards)) throw new Error('cards array not found');
+      try {
+        const rawText = await file.text();
+        const { normalizedCards, activity, deletedPresetKeys } = parseBackupData(rawText);
+        const isMerge = mode === 'merge';
+        const message = isMerge
+          ? `バックアップから${normalizedCards.length}件を読み込み、現在のデータに無いカードだけを追加します。\n\n実行前に現在のデータの自動バックアップを書き出します。続行しますか？`
+          : `バックアップから${normalizedCards.length}件のカードを復元します。現在の学習データは上書きされます。\n\n実行前に現在のデータの自動バックアップを書き出します。続行しますか？`;
 
-          const normalizedCards = rawCards.map(normalizeCard).filter(c => c.word && c.meaning);
-          if (normalizedCards.length === 0) throw new Error('no valid cards');
+        const ok = await showConfirmDialog({
+          title: isMerge ? 'マージ復元しますか？' : '上書き復元しますか？',
+          message,
+          confirmText: isMerge ? 'マージ復元する' : '上書き復元する',
+          cancelText: 'キャンセル',
+          danger: !isMerge
+        });
+        if (!ok) return;
 
-          const ok = confirm(`バックアップから${normalizedCards.length}件のカードを復元します。現在の学習データは上書きされます。よろしいですか？`);
-          if (!ok) return;
+        const backupStarted = exportBackup({ silent: true, filenamePrefix: 'memoria-core-auto-backup-before-restore' });
+        if (!backupStarted) {
+          showToast('復元前の自動バックアップを書き出せませんでした。復元を中止します。');
+          return;
+        }
+        showToast('復元前の自動バックアップを書き出しました。保存先を確認してください。');
 
-          const activity = (!Array.isArray(data) && data.activity && typeof data.activity === 'object') ? data.activity : {};
+        if (isMerge) {
+          const merged = mergeCardsByDuplicateKey(getCards(), normalizedCards);
+          const mergedActivity = mergeActivityData(getActivityData(), activity);
+          if (!safeSetItem(ACTIVITY_STORAGE_KEY, JSON.stringify(mergedActivity))) {
+            showToast('学習履歴の復元に失敗しました。');
+            return;
+          }
+          restoreDeletedPresetKeys(deletedPresetKeys, 'merge');
+          const seeded = seedAndMergePresetCards(merged.cards);
+          if (!saveCards(seeded.cards)) return;
+          editingCardId = null;
+          populateCategoryFilter(); resetListPaging(); updateDashboard();
+          showToast(`マージ復元しました。追加カード: ${merged.added}件`);
+        } else {
           if (!safeSetItem(ACTIVITY_STORAGE_KEY, JSON.stringify(activity))) {
             showToast('学習履歴の復元に失敗しました。');
             return;
           }
-          saveDeletedPresetKeys(new Set());
-          if (!saveCards(normalizedCards)) return;
+          restoreDeletedPresetKeys(deletedPresetKeys, 'overwrite');
+          const seeded = seedAndMergePresetCards(normalizedCards);
+          if (!saveCards(seeded.cards)) return;
           editingCardId = null;
           populateCategoryFilter(); resetListPaging(); updateDashboard();
-          showToast('バックアップを復元しました。');
-        } catch (e) {
-          console.error(e);
-          alert('バックアップファイルを読み込めませんでした。JSON形式を確認してください。');
-        } finally {
-          input.value = '';
+          showToast('バックアップを上書き復元しました。');
         }
-      };
-      reader.readAsText(file);
+      } catch (e) {
+        console.error(e);
+        showToast('バックアップファイルを読み込めませんでした。JSON形式を確認してください。');
+      } finally {
+        input.value = '';
+      }
     }
   </script>
 </body>
