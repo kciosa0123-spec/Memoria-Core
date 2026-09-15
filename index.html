@@ -151,7 +151,7 @@
   <nav aria-label="メインナビゲーション">
     <button id="nav-dashboard" class="active-nav" aria-current="page" onclick="switchTab('tab-dashboard')">🏠 ホーム</button>
     <button id="nav-list" onclick="switchTab('tab-list')">📋 単語リスト</button>
-    <button id="nav-import" onclick="switchTab('tab-import')">➕ 新規追加</button>
+    <button id="nav-import" onclick="switchTab('tab-import')">🗂️ 単語・データ管理</button>
   </nav>
 
   <div id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -248,8 +248,9 @@
     </div>
 
     <div id="tab-import" class="tab-content">
-      <h2>単語の新規追加</h2>
+      <h2>単語・データ管理</h2>
       <div class="panel">
+        <h3 style="margin-top: 0;">単語の新規追加</h3>
         <p class="small-note">手動で単語を追加します。カテゴリを空欄にすると「未分類」として保存されます。空欄化済み例文を空欄にした場合は、学習時に見出し語を自動で空欄化します。</p>
         <div class="edit-grid" style="margin-bottom: 15px;">
           <label>カテゴリ<input id="add-category" type="text" placeholder="例: ビジネス、生活"></label>
