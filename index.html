@@ -1905,6 +1905,7 @@
       panel.querySelector('#catalog-cancel').onclick=()=>{if(writePending)return;catalogAttemptP27++;catalogVerifiedP27=null;catalogCandidateP27=null;commit.disabled=true;status.textContent='更新を中断しました。保存データは変更していません。';};
       commit.onclick=async()=>{panel.querySelectorAll('button,input').forEach(e=>{e.disabled=true;});try{await finishCatalogUpdateP27();}catch(e){status.textContent='更新できませんでした: '+e.message;if(!document.getElementById('storage-recovery')){panel.querySelectorAll('button,input').forEach(e=>{e.disabled=false;});commit.disabled=!catalogVerifiedP27;}}};
     }
+
   </script>
 </body>
 </html>
