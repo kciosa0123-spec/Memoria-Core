@@ -160,6 +160,12 @@
     #tier-learning-state dl { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 6px 0 14px; }
     #tier-learning-state dl div { display: flex; flex-wrap: wrap; gap: 6px; }
     #tier-learning-state dt, #tier-learning-state dd { margin: 0; color: var(--text-main); }
+    /* Candidate B: read-only study navigator */
+    #todays-study-nav h3 { margin-top: 0; }
+    #todays-study-nav p { overflow-wrap: anywhere; }
+    #todays-study-nav dl { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+    #todays-study-nav dl div { display: flex; flex-wrap: wrap; gap: 6px; }
+    #todays-study-nav dt, #todays-study-nav dd { margin: 0; color: var(--text-main); }
   </style>
 </head>
 <body>
@@ -219,6 +225,21 @@
           学習画面では Space で答え表示、1〜4 で評価できます。「忘れた」を押した単語は、このセッションの最後にもう一度出ます。
         </p>
       </div>
+
+      <section id="todays-study-nav" class="panel" aria-labelledby="todays-study-nav-title" hidden>
+        <h3 id="todays-study-nav-title">今日の学習ナビ</h3>
+        <p id="todays-study-nav-context"></p>
+        <dl>
+          <div><dt>復習対象</dt><dd id="todays-study-nav-review"></dd></div>
+          <div><dt>苦手候補</dt><dd id="todays-study-nav-weak"></dd></div>
+          <div><dt>未学習</dt><dd id="todays-study-nav-new"></dd></div>
+        </dl>
+        <p>表示更新時点の教材件数です。カテゴリーの重複や履歴を共有する教材があるため、合計や実際の出題数を表しません。</p>
+        <p>新規学習は1回最大10件です。上の「学習を始める」からモードを選べます。</p>
+        <p id="todays-study-nav-unavailable" hidden>TOEICの新規学習は現在開始できません。</p>
+        <p>今日の評価回数（全コース・保存記録）: <span id="todays-study-nav-activity"></span></p>
+        <p>同じカードや「忘れた」カードの再評価、復元した記録を含みます。学習した単語の数や習得数ではありません。</p>
+      </section>
 
       <section id="tier-learning-state" class="panel" hidden aria-labelledby="tier-learning-state-title">
         <h3 id="tier-learning-state-title">TOEIC学習状態</h3>
@@ -1183,6 +1204,35 @@
         if (error && error.candidateAStateFailure) stopStorageV2(error);
       }
     }
+    // Candidate B reads existing Dashboard stats; it never selects or changes a queue.
+    function todaysStudyViewModel(stats) {
+      if (!stateV2 || storageStopped) return null;
+      const day = todayStamp();
+      return {
+        course: stateV2.selectedCourse === 'toeic' ? 'TOEIC' : 'Normal', day,
+        review: stats.review, weak: stats.weak, newCount: stats.newCount,
+        activity: Object.prototype.hasOwnProperty.call(stateV2.activity, day) ? stateV2.activity[day] : 0,
+        newUnavailable: stateV2.selectedCourse === 'toeic' && !tierReadyFor(stateV2.contentVersions.toeic)
+      };
+    }
+    function renderTodaysStudy(stats) {
+      const panel = document.getElementById('todays-study-nav');
+      if (!panel) return;
+      const view = todaysStudyViewModel(stats);
+      if (!view) { if (!panel.hidden) panel.hidden = true; return; }
+      const values = {
+        context: `現在: ${view.course} ／ 表示更新日: ${view.day}`,
+        review: `${view.review}件`, weak: `${view.weak}件`, new: `${view.newCount}件`,
+        activity: `${view.activity}回`
+      };
+      for (const [name, text] of Object.entries(values)) {
+        const node = document.getElementById('todays-study-nav-' + name);
+        if (node.textContent !== text) node.textContent = text;
+      }
+      const unavailable = document.getElementById('todays-study-nav-unavailable');
+      if (unavailable.hidden === view.newUnavailable) unavailable.hidden = !view.newUnavailable;
+      if (panel.hidden) panel.hidden = false;
+    }
     function updateDashboard() {
       renderCourseP3();
       const cards = getValidCards(), now = new Date().getTime();
@@ -1193,6 +1243,7 @@
       document.getElementById('btn-count-weak').textContent = `${stats.weak}件`;
       renderActivityStats();
       renderTierLearningState();
+      renderTodaysStudy(stats);
     }
 
     // ==========================================
