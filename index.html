@@ -152,6 +152,14 @@
       .filters { grid-template-columns: 1fr; } .eval-buttons { flex-direction: column; } .btn-eval { width: 100%; min-height: 64px; }
       li.word-item { flex-direction: column; } .word-actions { width: 100%; flex-direction: row; } .word-actions .btn { flex: 1; }
     }
+
+    /* Candidate A: read-only learning-state panel */
+    #tier-learning-state h3 { margin-top: 0; }
+    #tier-learning-state h4 { margin: 14px 0 6px; overflow-wrap: anywhere; }
+    #tier-learning-state p { overflow-wrap: anywhere; }
+    #tier-learning-state dl { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 6px 0 14px; }
+    #tier-learning-state dl div { display: flex; flex-wrap: wrap; gap: 6px; }
+    #tier-learning-state dt, #tier-learning-state dd { margin: 0; color: var(--text-main); }
   </style>
 </head>
 <body>
@@ -211,6 +219,11 @@
           学習画面では Space で答え表示、1〜4 で評価できます。「忘れた」を押した単語は、このセッションの最後にもう一度出ます。
         </p>
       </div>
+
+      <section id="tier-learning-state" class="panel" hidden aria-labelledby="tier-learning-state-title">
+        <h3 id="tier-learning-state-title">TOEIC学習状態</h3>
+        <div id="tier-learning-state-body"></div>
+      </section>
     </div>
 
     <div id="tab-learning" class="tab-content">
@@ -1127,6 +1140,49 @@
     function isReviewDue(c, now) { return c.status !== 'new' && getReviewTime(c) <= now; }
     function isNewCard(c) { return c.status === 'new'; }
     function isWeakCard(c) { return c.status === 'learning' || (c.lapses || 0) >= 2 || (c.efactor !== undefined && c.efactor < 2.0); }
+
+    // Candidate A: derived entry counts only; never a persistence or queue input.
+    function aggregateTierLearningState(state) {
+      const counts = {Core:{active:0,new:0,learning:0,review:0},Standard:{active:0,new:0,learning:0,review:0},Extended:{active:0,new:0,learning:0,review:0}};
+      const seen = new Set();
+      for (const id of state.memberships.toeic) {
+        if (seen.has(id)) { const error = new Error('学習対象の参照が重複しています'); error.candidateAStateFailure = true; throw error; }
+        seen.add(id);
+        if (!Object.prototype.hasOwnProperty.call(TOEIC_CATALOG.entries, id)) continue;
+        const entry = state.entries[id];
+        const memory = entry && entry.memory_ref && resolveMemoryV2(state, entry);
+        if (!memory || !['new','learning','review'].includes(memory.status)) { const error = new Error('学習状態の参照が不正です'); error.candidateAStateFailure = true; throw error; }
+        const row = toeicTierState.map[id];
+        if (!row || !Object.prototype.hasOwnProperty.call(counts, row.tier)) throw new Error('Tier集計対象を確認できません');
+        counts[row.tier].active++; counts[row.tier][memory.status]++;
+      }
+      for (const count of Object.values(counts)) if (count.new + count.learning + count.review !== count.active) throw new Error('Tier集計の件数が一致しません');
+      return counts;
+    }
+    function renderTierLearningState() {
+      const panel = document.getElementById('tier-learning-state');
+      const body = document.getElementById('tier-learning-state-body');
+      if (!panel || !body) { if (panel && !panel.hidden) panel.hidden = true; return; }
+      try {
+        const visible = !!stateV2 && !storageStopped && stateV2.selectedCourse === 'toeic' && stateV2.contentVersions.toeic !== null;
+        if (!visible) { if (!panel.hidden) panel.hidden = true; if (body.childNodes.length) body.replaceChildren(); return; }
+        let html = '<p>Tier別学習状態を表示できません。</p>';
+        if (tierReadyFor(stateV2.contentVersions.toeic)) {
+          const counts = aggregateTierLearningState(stateV2);
+          html = '<p>TierはTOEIC学習上の優先度です。</p><p>Normalと共有される学習履歴を含みます。</p><p>対象は現在登録中の公式TOEIC教材です。削除した教材と追加した単語は含みません。編集した教材のTierは元の教材に対応します。</p><p>「復習段階」は復習待機中の状態で、習得済みを意味しません。</p>';
+          for (const tier of ['Core','Standard','Extended']) {
+            const count = counts[tier];
+            html += '<section><h4>' + tier + ' — 対象 ' + count.active + '件' + (count.active === 0 ? '（対象なし）' : '') + '</h4><dl><div><dt>未学習</dt><dd>' + count.new + '件</dd></div><div><dt>学習中</dt><dd>' + count.learning + '件</dd></div><div><dt>復習段階</dt><dd>' + count.review + '件</dd></div></dl></section>';
+          }
+        }
+        if (body.innerHTML !== html) body.innerHTML = html;
+        if (panel.hidden) panel.hidden = false;
+      } catch (error) {
+        try { body.replaceChildren(); body.textContent = 'Tier別学習状態を表示できません。'; if (panel.hidden) panel.hidden = false; }
+        catch (_) { panel.hidden = true; }
+        if (error && error.candidateAStateFailure) stopStorageV2(error);
+      }
+    }
     function updateDashboard() {
       renderCourseP3();
       const cards = getValidCards(), now = new Date().getTime();
@@ -1136,6 +1192,7 @@
       document.getElementById('btn-count-review').textContent = `${stats.review}件`; document.getElementById('btn-count-new').textContent = `${Math.min(10, stats.newCount)} / ${stats.newCount}件`;
       document.getElementById('btn-count-weak').textContent = `${stats.weak}件`;
       renderActivityStats();
+      renderTierLearningState();
     }
 
     // ==========================================
