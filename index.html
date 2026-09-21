@@ -166,6 +166,35 @@
     #todays-study-nav dl { display: flex; flex-wrap: wrap; gap: 10px 24px; }
     #todays-study-nav dl div { display: flex; flex-wrap: wrap; gap: 6px; }
     #todays-study-nav dt, #todays-study-nav dd { margin: 0; color: var(--text-main); }
+
+    /* Study UX Patch 1: scoped readability and study layout */
+    #tab-dashboard .mode-button.btn-secondary,
+    #tab-dashboard .mode-button.btn-warning,
+    #course-normal:enabled, #course-toeic:enabled,
+    #study-suspend,
+    #eval-buttons > .btn-warning,
+    #eval-buttons > .btn-secondary,
+    #eval-buttons > .btn-danger { color: #111827; }
+    #eval-buttons > .btn-danger:hover { opacity: 1; }
+    #tab-dashboard .mode-button.btn-primary .mode-count { background: transparent; }
+    #study-entry-availability { color: var(--text-main); font-size: 13px; line-height: 1.6; }
+    @media (prefers-color-scheme: dark) {
+      #tab-dashboard .stat-number, #card-meaning { color: #A5B4FC; }
+    }
+    @media (max-width: 560px) {
+      #tab-learning #flashcard-ui { padding: 12px; margin-bottom: 8px; }
+      #flashcard-ui .word-title { margin-bottom: 4px; }
+      #flashcard-ui .badge-row { margin-bottom: 6px; }
+      #flashcard-ui .hint-box { padding: 8px; margin: 6px 0 8px; }
+      #flashcard-ui > button { margin-bottom: 8px !important; }
+      #card-back > hr { margin: 8px 0 !important; }
+      #card-meaning { margin-bottom: 8px; }
+      #eval-buttons { flex-direction: row; flex-wrap: wrap; }
+      #eval-buttons > .btn-eval { flex: 1 1 calc((100% - 24px) / 4); width: auto; min-width: max-content; min-height: 68px; }
+    }
+    @media (max-width: 379px) {
+      #eval-buttons > .btn-eval { flex-basis: calc((100% - 8px) / 2); }
+    }
   </style>
 </head>
 <body>
@@ -208,8 +237,9 @@
         <div id="heatmap-container" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px;"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="study-entry-panel">
         <h3 style="margin-top: 0; text-align: center;">学習を始める</h3>
+        <p id="study-entry-availability" hidden></p>
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <button onclick="startLearningMode('review')" class="btn btn-primary mode-button">
             <span>📅 今日の復習を開始する</span><span id="btn-count-review" class="mode-count">0件</span>
@@ -222,7 +252,7 @@
           </button>
         </div>
         <p class="small-note" style="margin-top: 10px; margin-bottom: 0;">
-          学習画面では Space で答え表示、1〜4 で評価できます。「忘れた」を押した単語は、このセッションの最後にもう一度出ます。
+          学習画面では Space で答え表示、1〜4 で評価できます。「わからない」を押した単語は、このセッションの最後にもう一度出ます。
         </p>
       </div>
 
@@ -235,10 +265,10 @@
           <div><dt>未学習</dt><dd id="todays-study-nav-new"></dd></div>
         </dl>
         <p>表示更新時点の教材件数です。カテゴリーの重複や履歴を共有する教材があるため、合計や実際の出題数を表しません。</p>
-        <p>新規学習は1回最大10件です。上の「学習を始める」からモードを選べます。</p>
+        <p>新規学習は1回最大10件です。各モードの対象がない場合もあります。対象件数と、上の『学習を始める』の案内を確認してください。</p>
         <p id="todays-study-nav-unavailable" hidden>TOEICの新規学習は現在開始できません。</p>
         <p>今日の評価回数（全コース・保存記録）: <span id="todays-study-nav-activity"></span></p>
-        <p>同じカードや「忘れた」カードの再評価、復元した記録を含みます。学習した単語の数や習得数ではありません。</p>
+        <p>同じカードや「わからない」と評価したカードの再評価、復元した記録を含みます。学習した単語の数や習得数ではありません。</p>
       </section>
 
       <section id="tier-learning-state" class="panel" hidden aria-labelledby="tier-learning-state-title">
@@ -250,7 +280,7 @@
     <div id="tab-learning" class="tab-content">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px;">
         <div id="learning-progress" style="font-weight: bold; font-size: 16px;" aria-live="polite"></div>
-        <button onclick="suspendLearning()" class="btn btn-muted" style="padding: 6px 10px; font-size: 12px;">⏸️ 中断して戻る</button>
+        <button id="study-suspend" onclick="suspendLearning()" class="btn btn-muted" style="padding: 6px 10px; font-size: 12px;">⏸️ 中断して戻る</button>
       </div>
 
       <div class="flashcard" id="flashcard-ui" role="group" aria-label="フラッシュカード">
@@ -276,7 +306,7 @@
       </div>
 
       <div id="eval-buttons" class="eval-buttons">
-        <button onclick="evaluateCard('forgot')" class="btn btn-danger btn-eval">忘れた<br><small>1</small></button>
+        <button onclick="evaluateCard('forgot')" class="btn btn-danger btn-eval">わからない<br><small>1</small></button>
         <button onclick="evaluateCard('hard')" class="btn btn-warning btn-eval">難しい<br><small>2</small></button>
         <button onclick="evaluateCard('good')" class="btn btn-secondary btn-eval">普通<br><small>3</small></button>
         <button onclick="evaluateCard('easy')" class="btn btn-primary btn-eval">簡単<br><small>4</small></button>
@@ -1233,6 +1263,23 @@
       if (unavailable.hidden === view.newUnavailable) unavailable.hidden = !view.newUnavailable;
       if (panel.hidden) panel.hidden = false;
     }
+    // Study UX Patch 1: read-only explanation of existing Dashboard counts.
+    function renderStudyEntryAvailability(stats) {
+      const notice = document.getElementById('study-entry-availability');
+      if (!notice) return;
+      if (!stateV2 || storageStopped || !stats ||
+          !['review', 'weak', 'newCount'].every(key => Number.isInteger(stats[key]) && stats[key] >= 0)) {
+        notice.hidden = true;
+        return;
+      }
+      const zeroModes = [['review', '復習'], ['weak', '苦手'], ['newCount', '新規']]
+        .filter(([key]) => stats[key] === 0).map(([, label]) => label);
+      const text = zeroModes.length === 3
+        ? '表示更新時点で、このコースの復習対象・苦手候補・未学習はすべて0件です。'
+        : zeroModes.length ? `表示更新時点で、対象が0件のモード：${zeroModes.join('／')}。` : '';
+      if (notice.textContent !== text) notice.textContent = text;
+      if (notice.hidden !== !text) notice.hidden = !text;
+    }
     function updateDashboard() {
       renderCourseP3();
       const cards = getValidCards(), now = new Date().getTime();
@@ -1244,6 +1291,7 @@
       renderActivityStats();
       renderTierLearningState();
       renderTodaysStudy(stats);
+      renderStudyEntryAvailability(stats);
     }
 
     // ==========================================
