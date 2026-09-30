@@ -426,10 +426,22 @@ const isTime = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 function validateMemory(m) {
   return isRecord(m) && ['new', 'learning', 'review'].includes(m.status) && isCount(m.repetition) && isCount(m.interval) &&
     isCount(m.lapses) && typeof m.efactor === 'number' && m.efactor >= 1.3 && m.efactor <= MAX_EFACTOR &&
-    isTime(m.nextReviewDate) && (m.lastReviewedAt === null || m.lastReviewedAt === undefined || isTime(m.lastReviewedAt));
+    isTime(m.nextReviewDate) && (m.lastReviewedAt === null || m.lastReviewedAt === undefined || isTime(m.lastReviewedAt)) &&
+    // reviewCount がない旧データはそのまま受け入れる。ある場合は0以上の整数だけ（"3" などの文字列は不可）
+    (m.reviewCount === undefined || isCount(m.reviewCount));
 }
 function validateEntryFields(e) {
   return isRecord(e) && CONTENT_FIELDS.every(f => typeof e[f] === 'string') && e.word.trim() !== '' && e.meaning.trim() !== '';
+}
+const isNonBlank = v => typeof v === 'string' && v.trim() !== '';
+// 教材の編集差分：例文などは空欄にしてよいが、word と meaning を置く場合は空にできない（通常の編集画面と同じ条件）
+function validateOverride(o) {
+  return isRecord(o) && Object.entries(o).every(([k, v]) => CONTENT_FIELDS.includes(k) && typeof v === 'string') &&
+    (!own(o, 'word') || isNonBlank(o.word)) && (!own(o, 'meaning') || isNonBlank(o.meaning));
+}
+// 追加した単語：word_id は学習記録の結び付けに使うため、空や空白だけは不可（勝手に採番し直さず、取り込み自体を止める）
+function validateUserEntry(k, e) {
+  return k.startsWith('user-entry-') && validateEntryFields(e) && ['normal', 'toeic'].includes(e.course) && isNonBlank(e.word_id) && isTime(e.createdAt);
 }
 // Returns a list of problems (empty = valid). Unknown extra keys are kept untouched.
 function validateState(s) {
@@ -439,10 +451,10 @@ function validateState(s) {
   if (s.schema !== SCHEMA) p.push(`未対応の保存形式です（schema ${s.schema}）`);
   if (!['normal', 'toeic'].includes(s.course)) p.push('course');
   if (!isCount(s.rev)) p.push('rev');
-  if (!isRecord(s.memories) || !Object.entries(s.memories).every(([k, m]) => typeof k === 'string' && validateMemory(m))) p.push('memories');
-  if (!isRecord(s.overrides) || !Object.values(s.overrides).every(o => isRecord(o) && Object.entries(o).every(([k, v]) => CONTENT_FIELDS.includes(k) && typeof v === 'string'))) p.push('overrides');
+  if (!isRecord(s.memories) || !Object.entries(s.memories).every(([k, m]) => typeof k === 'string' && validateMemory(m))) p.push('memories（学習記録の値が不正です）');
+  if (!isRecord(s.overrides) || !Object.values(s.overrides).every(validateOverride)) p.push('overrides（編集した単語の見出し語か意味が空です）');
   if (!Array.isArray(s.deleted) || !s.deleted.every(x => typeof x === 'string')) p.push('deleted');
-  if (!isRecord(s.userEntries) || !Object.entries(s.userEntries).every(([k, e]) => k.startsWith('user-entry-') && validateEntryFields(e) && ['normal', 'toeic'].includes(e.course) && typeof e.word_id === 'string' && isTime(e.createdAt))) p.push('userEntries');
+  if (!isRecord(s.userEntries) || !Object.entries(s.userEntries).every(([k, e]) => validateUserEntry(k, e))) p.push('userEntries（追加した単語の見出し語・意味・word_id のいずれかが空です）');
   if (s.toeicLevels !== undefined && s.toeicLevels !== null && !(Array.isArray(s.toeicLevels) && s.toeicLevels.every(x => typeof x === 'string'))) p.push('toeicLevels');
   if (!isRecord(s.activity) || !Object.entries(s.activity).every(([d, c]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && isCount(c))) p.push('activity');
   return p;
